@@ -1,0 +1,17 @@
+# Fichiers temporaires Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environnements virtuels
+.venv/
+venv/
+env/
+
+# Configuration locale et secrets
+.env
+.env.*
+!.env.example
+
+# Fichiers de l'éditeur
+.vscode/
