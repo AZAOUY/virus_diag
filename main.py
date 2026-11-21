@@ -4,6 +4,7 @@ import pickle
 from core.dataset import Dataset
 from core.logistic_regression import LogisticRegression
 from core.neural_network import NeuralNetwork
+from core.naive_bayes import GaussianNaiveBayes
 from pipeline.trainer import Trainer
 from pipeline.evaluator import Evaluator
 from utils.preprocessing import Preprocessor
@@ -15,7 +16,8 @@ prep = Preprocessor().fit(X_train)            # appris sur le train uniquement
 Xtr, Xte = prep.transform(X_train), prep.transform(X_test)
 
 models = {"logistic_regression": LogisticRegression(),
-          "neural_network": NeuralNetwork()}
+          "neural_network": NeuralNetwork(),
+          "naive_bayes": GaussianNaiveBayes()}
 results = {}
 for name, model in models.items():
     Trainer(model).run(Xtr, y_train)

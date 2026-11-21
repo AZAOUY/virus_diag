@@ -1,0 +1,150 @@
+From ec6ceb7b5c31fd5a7dc83c2f57d6e8a50cc82592 Mon Sep 17 00:00:00 2001
+From: Etudiant <etudiant@example.com>
+Date: Sat, 21 Nov 2026 10:35:50 +0100
+Subject: [PATCH 1/2] =?UTF-8?q?feat(#1):=20ajout=20du=20mod=C3=A8le=20Gaus?=
+ =?UTF-8?q?sianNaiveBayes?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- core/naive_bayes.py : nouveau modèle héritant de Model
+- main.py : le modèle est entraîné et comparé aux autres
+- tests/test_naive_bayes.py : tests unitaires
+---
+ README.md                 |  2 +-
+ core/naive_bayes.py       | 44 +++++++++++++++++++++++++++++++++++++++
+ main.py                   |  4 +++-
+ tests/test_naive_bayes.py | 35 +++++++++++++++++++++++++++++++
+ 4 files changed, 83 insertions(+), 2 deletions(-)
+ create mode 100644 core/naive_bayes.py
+ create mode 100644 tests/test_naive_bayes.py
+
+diff --git a/README.md b/README.md
+index 97be3da..602da9c 100644
+--- a/README.md
++++ b/README.md
+@@ -6,7 +6,7 @@ Projet d'application du Chapitre 5 (POO adaptée à l'IA), Master IA, Génie Log
+ ```
+ virus_diag/
+ ├── data/        patient_data.csv (données synthétiques)
+-├── core/        dataset, model (abstrait), logistic_regression, neural_network, optimizer
++├── core/        dataset, model (abstrait), logistic_regression, neural_network, naive_bayes, optimizer
+ ├── pipeline/    trainer, evaluator, predictor (ClinicalPredictor)
+ ├── utils/       preprocessing, metrics
+ ├── app/         api (Flask), interface_clinique
+diff --git a/core/naive_bayes.py b/core/naive_bayes.py
+new file mode 100644
+index 0000000..560189a
+--- /dev/null
++++ b/core/naive_bayes.py
+@@ -0,0 +1,44 @@
++import numpy as np
++from core.model import Model
++
++
++class GaussianNaiveBayes(Model):
++    """Classifieur bayésien naïf gaussien (binaire : sain / infecté).
++
++    Hypothèse : les variables sont indépendantes sachant la classe et
++    chacune suit une loi normale dans chaque classe.
++    """
++
++    def __init__(self, var_smoothing=1e-9):
++        super().__init__()
++        self.var_smoothing = var_smoothing
++        self._params = None
++
++    def train(self, X, y):
++        X = np.asarray(X, dtype=float)
++        y = np.asarray(y, dtype=float)
++        eps = self.var_smoothing * X.var(axis=0).max()
++        self._params = {}
++        for c in (0, 1):
++            Xc = X[y == c]
++            self._params[c] = {
++                "prior": len(Xc) / len(X),
++                "mean": Xc.mean(axis=0),
++                "var": Xc.var(axis=0) + eps,
++            }
++        self._trained = True
++        return self
++
++    def _log_likelihood(self, X, c):
++        p = self._params[c]
++        return (np.log(p["prior"])
++                - 0.5 * np.sum(np.log(2 * np.pi * p["var"]))
++                - 0.5 * np.sum((X - p["mean"]) ** 2 / p["var"], axis=1))
++
++    def predict(self, X):
++        """Retourne la probabilité d'être infecté pour chaque ligne de X."""
++        if not self._trained:
++            raise RuntimeError("Le modèle doit être entraîné avant predict().")
++        X = np.atleast_2d(np.asarray(X, dtype=float))
++        # P(infecté | x) = sigmoid(log P(1|x) - log P(0|x))
++        return self._sigmoid(self._log_likelihood(X, 1) - self._log_likelihood(X, 0))
+diff --git a/main.py b/main.py
+index 7a4067f..cebb1fc 100644
+--- a/main.py
++++ b/main.py
+@@ -4,6 +4,7 @@ import pickle
+ from core.dataset import Dataset
+ from core.logistic_regression import LogisticRegression
+ from core.neural_network import NeuralNetwork
++from core.naive_bayes import GaussianNaiveBayes
+ from pipeline.trainer import Trainer
+ from pipeline.evaluator import Evaluator
+ from utils.preprocessing import Preprocessor
+@@ -15,7 +16,8 @@ prep = Preprocessor().fit(X_train)            # appris sur le train uniquement
+ Xtr, Xte = prep.transform(X_train), prep.transform(X_test)
+ 
+ models = {"logistic_regression": LogisticRegression(),
+-          "neural_network": NeuralNetwork()}
++          "neural_network": NeuralNetwork(),
++          "naive_bayes": GaussianNaiveBayes()}
+ results = {}
+ for name, model in models.items():
+     Trainer(model).run(Xtr, y_train)
+diff --git a/tests/test_naive_bayes.py b/tests/test_naive_bayes.py
+new file mode 100644
+index 0000000..1e0c95c
+--- /dev/null
++++ b/tests/test_naive_bayes.py
+@@ -0,0 +1,35 @@
++import numpy as np
++import pytest
++from core.naive_bayes import GaussianNaiveBayes
++from pipeline.predictor import ClinicalPredictor
++
++
++def _data():
++    rng = np.random.default_rng(0)
++    X = rng.normal(size=(200, 2))
++    y = (X[:, 0] > 0).astype(float)
++    return X, y
++
++
++def test_naive_bayes_apprend():
++    X, y = _data()
++    model = GaussianNaiveBayes().train(X, y)
++    assert ((model.predict(X) >= 0.5) == y).mean() > 0.9
++
++
++def test_probabilites_entre_0_et_1():
++    X, y = _data()
++    proba = GaussianNaiveBayes().train(X, y).predict(X)
++    assert np.all((proba >= 0) & (proba <= 1))
++
++
++def test_predict_sans_entrainement():
++    with pytest.raises(RuntimeError):
++        GaussianNaiveBayes().predict([[1, 2]])
++
++
++def test_compatible_clinical_predictor():
++    X, y = _data()
++    model = GaussianNaiveBayes().train(X, y)
++    assert ClinicalPredictor(model).diagnose([[3.0, 0.0]]) == "Infecté"
++    assert ClinicalPredictor(model).diagnose([[-3.0, 0.0]]) == "Sain"
+-- 
+2.43.0
+
