@@ -1,0 +1,70 @@
+From 44dddbe7786c5279684cf5bc34a00f3c16eddc1f Mon Sep 17 00:00:00 2001
+From: Etudiant <etudiant@example.com>
+Date: Sat, 21 Nov 2026 10:36:03 +0100
+Subject: [PATCH 2/2] =?UTF-8?q?refactor(#1):=20v=C3=A9rification=20=5Fchec?=
+ =?UTF-8?q?k=5Ftrained()=20factoris=C3=A9e=20dans=20Model=20(suite=20revie?=
+ =?UTF-8?q?w)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ core/logistic_regression.py | 1 +
+ core/model.py               | 5 +++++
+ core/naive_bayes.py         | 3 +--
+ core/neural_network.py      | 1 +
+ 4 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/core/logistic_regression.py b/core/logistic_regression.py
+index e8e7790..838d7b9 100644
+--- a/core/logistic_regression.py
++++ b/core/logistic_regression.py
+@@ -24,4 +24,5 @@ class LogisticRegression(Model):
+         return self
+ 
+     def predict(self, X):
++        self._check_trained()
+         return self._sigmoid(X @ self._params["w"] + self._params["b"])
+diff --git a/core/model.py b/core/model.py
+index c57d88e..4ec8ca9 100644
+--- a/core/model.py
++++ b/core/model.py
+@@ -18,6 +18,11 @@ class Model(ABC):
+         """Retourne la probabilité d'être infecté pour chaque ligne de X."""
+         ...
+ 
++    def _check_trained(self):
++        if not self._trained:
++            raise RuntimeError(
++                f"{type(self).__name__} doit être entraîné avant predict().")
++
+     @staticmethod
+     def _sigmoid(z):
+         return 1 / (1 + np.exp(-np.clip(z, -500, 500)))
+diff --git a/core/naive_bayes.py b/core/naive_bayes.py
+index 560189a..260675c 100644
+--- a/core/naive_bayes.py
++++ b/core/naive_bayes.py
+@@ -37,8 +37,7 @@ class GaussianNaiveBayes(Model):
+ 
+     def predict(self, X):
+         """Retourne la probabilité d'être infecté pour chaque ligne de X."""
+-        if not self._trained:
+-            raise RuntimeError("Le modèle doit être entraîné avant predict().")
++        self._check_trained()
+         X = np.atleast_2d(np.asarray(X, dtype=float))
+         # P(infecté | x) = sigmoid(log P(1|x) - log P(0|x))
+         return self._sigmoid(self._log_likelihood(X, 1) - self._log_likelihood(X, 0))
+diff --git a/core/neural_network.py b/core/neural_network.py
+index 9095893..d27ca3e 100644
+--- a/core/neural_network.py
++++ b/core/neural_network.py
+@@ -42,4 +42,5 @@ class NeuralNetwork(Model):
+         return self
+ 
+     def predict(self, X):
++        self._check_trained()
+         return self._forward(X)[1].ravel()
+-- 
+2.43.0
+
